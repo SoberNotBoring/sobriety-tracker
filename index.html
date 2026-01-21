@@ -1,0 +1,153 @@
+<div id="snb-sobriety-tracker" style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; max-width: 520px; margin: 0 auto; padding: 16px; border: 1px solid rgba(0,0,0,.12); border-radius: 12px;">
+  <h2 style="margin: 0 0 8px; font-size: 20px;">Sobriety Tracker</h2>
+  <p style="margin: 0 0 16px; opacity: .85; line-height: 1.35;">
+    Enter your sobriety start date. This is saved privately on your device.
+  </p>
+
+  <label style="display:block; font-weight:600; margin-bottom:6px;">Sobriety start date</label>
+  <input id="snbDate" type="date" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.18); font-size: 16px;" />
+
+  <div style="display:flex; gap:10px; margin-top: 12px;">
+    <button id="snbSave" style="flex:1; padding: 10px 12px; border-radius: 10px; border: 0; font-weight: 700; cursor: pointer;">
+      Save Date
+    </button>
+    <button id="snbReset" style="padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.18); background: transparent; cursor: pointer;">
+      Reset
+    </button>
+  </div>
+
+  <div id="snbResults" style="margin-top:16px; padding: 14px; border-radius: 12px; background: rgba(0,0,0,.04); display:none;">
+    <div style="font-weight: 800; font-size: 18px; margin-bottom: 10px;">You’ve been sober for:</div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+      <div style="padding:10px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,.08);">
+        <div style="font-size: 12px; opacity:.7;">Days</div>
+        <div id="snbDays" style="font-size: 22px; font-weight: 800;"></div>
+      </div>
+      <div style="padding:10px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,.08);">
+        <div style="font-size: 12px; opacity:.7;">Weeks</div>
+        <div id="snbWeeks" style="font-size: 22px; font-weight: 800;"></div>
+      </div>
+      <div style="padding:10px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,.08);">
+        <div style="font-size: 12px; opacity:.7;">Months</div>
+        <div id="snbMonths" style="font-size: 22px; font-weight: 800;"></div>
+      </div>
+      <div style="padding:10px; border-radius:10px; background:#fff; border:1px solid rgba(0,0,0,.08);">
+        <div style="font-size: 12px; opacity:.7;">Years</div>
+        <div id="snbYears" style="font-size: 22px; font-weight: 800;"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px; font-size: 12px; opacity: .75;">
+      Tip: This tracker counts from your start date using your device’s local time.
+    </div>
+  </div>
+
+  <div id="snbError" style="margin-top: 10px; color: #b00020; font-weight:600; display:none;"></div>
+</div>
+
+<script>
+(function () {
+  const KEY = "snb_sober_date_v1";
+
+  const elDate = document.getElementById("snbDate");
+  const elSave = document.getElementById("snbSave");
+  const elReset = document.getElementById("snbReset");
+  const elResults = document.getElementById("snbResults");
+  const elError = document.getElementById("snbError");
+
+  const elDays = document.getElementById("snbDays");
+  const elWeeks = document.getElementById("snbWeeks");
+  const elMonths = document.getElementById("snbMonths");
+  const elYears = document.getElementById("snbYears");
+
+  function showError(msg) {
+    elError.textContent = msg;
+    elError.style.display = "block";
+  }
+
+  function clearError() {
+    elError.textContent = "";
+    elError.style.display = "none";
+  }
+
+  // Parse date input "YYYY-MM-DD" as local midnight to avoid timezone weirdness.
+  function parseLocalDate(yyyy_mm_dd) {
+    const [y, m, d] = yyyy_mm_dd.split("-").map(Number);
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
+
+  function daysBetween(start, end) {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    // Normalize both to local midnight
+    const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    return Math.max(0, Math.floor((e - s) / msPerDay));
+  }
+
+  // Months/Years: use calendar math (not average days) so it feels human.
+  function diffYearsMonths(start, end) {
+    let years = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    let totalMonths = years * 12 + months;
+
+    // If end day is before start day, subtract one month (not a full month completed)
+    if (end.getDate() < start.getDate()) totalMonths -= 1;
+
+    const outYears = Math.max(0, Math.floor(totalMonths / 12));
+    const outMonths = Math.max(0, totalMonths);
+
+    return { years: outYears, months: outMonths };
+  }
+
+  function render(startDate) {
+    const now = new Date();
+    const d = daysBetween(startDate, now);
+    const w = (d / 7);
+
+    const ym = diffYearsMonths(startDate, now);
+
+    elDays.textContent = d.toLocaleString();
+    elWeeks.textContent = w.toFixed(1);
+    elMonths.textContent = ym.months.toLocaleString();
+    elYears.textContent = ym.years.toLocaleString();
+
+    elResults.style.display = "block";
+  }
+
+  function loadSaved() {
+    const saved = localStorage.getItem(KEY);
+    if (!saved) return;
+    elDate.value = saved;
+    render(parseLocalDate(saved));
+  }
+
+  elSave.addEventListener("click", function () {
+    clearError();
+    if (!elDate.value) {
+      showError("Please pick a sobriety start date.");
+      return;
+    }
+    const start = parseLocalDate(elDate.value);
+    const now = new Date();
+    if (start > now) {
+      showError("That date is in the future. Choose your actual start date.");
+      return;
+    }
+    localStorage.setItem(KEY, elDate.value);
+    render(start);
+  });
+
+  elReset.addEventListener("click", function () {
+    localStorage.removeItem(KEY);
+    elDate.value = "";
+    elResults.style.display = "none";
+    clearError();
+  });
+
+  // Button style (no hard-coded colors, but make it look like a button)
+  elSave.style.background = "black";
+  elSave.style.color = "white";
+
+  loadSaved();
+})();
+</script>
