@@ -49,6 +49,17 @@
     </div>
 
     <div style="margin-top:10px; font-size: 12px; opacity: .75;">
+      <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+  <button id="snbShare" style="flex:1; min-width:160px; padding:10px 12px; border-radius:10px; border:0; font-weight:800; cursor:pointer;">
+    Share
+  </button>
+  <button id="snbCopy" style="flex:1; min-width:160px; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.18); background:transparent; font-weight:700; cursor:pointer;">
+    Copy Text
+  </button>
+</div>
+
+<div id="snbToast" style="margin-top:10px; font-size:12px; opacity:.75; display:none;"></div>
+
       Tip: This tracker counts from your start date using your device’s local time.
     </div>
   </div>
@@ -70,6 +81,9 @@
   const elWeeks = document.getElementById("snbWeeks");
   const elMonths = document.getElementById("snbMonths");
   const elYears = document.getElementById("snbYears");
+const elShare = document.getElementById("snbShare");
+const elCopy  = document.getElementById("snbCopy");
+const elToast = document.getElementById("snbToast");
 
   function showError(msg) {
     elError.textContent = msg;
@@ -147,7 +161,82 @@
     localStorage.setItem(KEY, elDate.value);
     render(start);
   });
+function toast(msg) {
+  elToast.textContent = msg;
+  elToast.style.display = "block";
+  setTimeout(() => (elToast.style.display = "none"), 2200);
+}
 
+function milestoneFromDays(d) {
+  const milestones = [1, 7, 14, 30, 60, 90, 100, 180, 365, 730, 1095, 1825, 3650];
+  let best = null;
+  for (const m of milestones) if (d >= m) best = m;
+  if (!best) return null;
+  const label = best >= 365 ? `${Math.floor(best/365)} year${Math.floor(best/365) === 1 ? "" : "s"}` : `${best} days`;
+  // If today is exactly a milestone, call it out.
+  return d === best ? `🎉 Milestone: ${label}!` : null;
+}
+
+function buildShareText(days, weeks, months, years) {
+  const ms = milestoneFromDays(days);
+  const parts = [];
+  parts.push(`I’m sober today: ${days} day${days === 1 ? "" : "s"}.`);
+  parts.push(`(${weeks.toFixed(1)} weeks • ${months} months • ${years} years)`);
+  if (ms) parts.push(ms);
+  parts.push(`Support + resources: Sober Not Boring app`);
+  return parts.join(" ");
+  // Store last computed values for sharing
+window.__snb_share = { d, w, m: ym.months, y: ym.years };
+// Style the share button (matches your save button vibe)
+elShare.style.background = "black";
+elShare.style.color = "white";
+
+elShare.addEventListener("click", async function () {
+  clearError();
+  const s = window.__snb_share;
+  if (!s) { showError("Save your date first."); return; }
+
+  const text = buildShareText(s.d, s.w, s.m, s.y);
+
+  // If you have a public page or app link, put it here:
+  const url = "https://sobernotboring.podbean.com/"; // swap to your preferred link (or your app landing page)
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: "Sobriety Tracker",
+        text,
+        url
+      });
+    } else {
+      await navigator.clipboard.writeText(`${text} ${url}`.trim());
+      toast("Copied—paste it anywhere.");
+    }
+  } catch (e) {
+    // User cancelled share or clipboard blocked
+    toast("No worries—share cancelled.");
+  }
+});
+
+elCopy.addEventListener("click", async function () {
+  clearError();
+  const s = window.__snb_share;
+  if (!s) { showError("Save your date first."); return; }
+
+  const text = buildShareText(s.d, s.w, s.m, s.y);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Copied to clipboard.");
+  } catch (e) {
+    // Fallback if clipboard isn't available
+    toast("Copy not supported here—try Share.");
+  }
+});
+
+}
+
+  
   elReset.addEventListener("click", function () {
     localStorage.removeItem(KEY);
     elDate.value = "";
