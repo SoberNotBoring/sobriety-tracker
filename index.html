@@ -56,6 +56,10 @@
   <button id="snbCopy" style="flex:1; min-width:160px; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.18); background:transparent; font-weight:700; cursor:pointer;">
     Copy Text
   </button>
+      <button id="snbOpen" style="flex:1; min-width:160px; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.18); background:transparent; font-weight:700; cursor:pointer;">
+  Open Full Screen
+</button>
+  
 </div>
 
 <div id="snbToast" style="margin-top:10px; font-size:12px; opacity:.75; display:none;"></div>
@@ -87,6 +91,8 @@
   const elShare = document.getElementById("snbShare");
   const elCopy = document.getElementById("snbCopy");
   const elToast = document.getElementById("snbToast");
+  const elOpen = document.getElementById("snbOpen");
+
 
   // Optional manual copy box (recommended). If you didn't add it yet, script will create it.
   let elShareBox = document.getElementById("snbShareBox");
@@ -185,9 +191,20 @@
     box.focus();
     box.select();
     toast("If share/copy is blocked, tap and hold to copy.");
+    function isEmbedded() {
+  try { return window.self !== window.top; } catch (e) { return true; }
+}
+
   }
 
   // --- State used for sharing
+  if (isEmbedded()) {
+  // In-app / iframe: share sheet usually blocked
+  showManualCopy(`${text} ${url}`.trim());
+  toast("Sharing works best in full screen. Tap 'Open Full Screen'.");
+  return;
+}
+
   let shareState = null;
 
   function render(startDate) {
@@ -238,6 +255,13 @@
     }
     localStorage.setItem(KEY, elDate.value);
     render(start);
+    if (elOpen) {
+  elOpen.addEventListener("click", function () {
+    // Open the tracker as a top-level page (not embedded)
+    window.open(location.href, "_blank", "noopener,noreferrer");
+  });
+}
+
   });
 
   elReset.addEventListener("click", function () {
