@@ -204,6 +204,8 @@
     const d = daysBetween(start, now);
     const w = d / 7;
     const ym = diffYearsMonths(start, now);
+const elOpenLink = document.getElementById("snbOpenLink");
+if (elOpenLink) elOpenLink.href = location.href;
 
     elDays.textContent = d.toLocaleString();
     elWeeks.textContent = w.toFixed(1);
@@ -246,10 +248,14 @@
     const text = buildShareText(shareState);
     const url = location.href;
 
-    if (isEmbedded()) {
-      manualCopy(`${text} ${url}`);
-      toast("Open full screen to use native sharing.");
-      return;
+   <a id="snbOpenLink"
+   href="#"
+   target="_blank"
+   rel="noopener noreferrer"
+   style="flex:1; min-width:160px; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.18); background:transparent; font-weight:700; cursor:pointer; text-align:center; text-decoration:none; display:inline-block;">
+  Open Full Screen
+</a>
+
     }
 
     try {
