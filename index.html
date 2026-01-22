@@ -75,262 +75,69 @@
 (function () {
   const KEY = "snb_sober_date_v1";
 
-  // --- Elements
-  const elDate = document.getElementById("snbDate");
-  const elSave = document.getElementById("snbSave");
-  const elReset = document.getElementById("snbReset");
-  const elResults = document.getElementById("snbResults");
-  const elError = document.getElementById("snbError");
+  /* ---------- Helpers ---------- */
 
-  const elDays = document.getElementById("snbDays");
-  const elWeeks = document.getElementById("snbWeeks");
-  const elMonths = document.getElementById("snbMonths");
-  const elYears = document.getElementById("snbYears");
+  function isEmbedded() {
+    try {
+      return window.self !== window.top;
+    } catch (e) {
+      return true;
+    }
+  }
 
-  // Share/Copy elements (must exist in your HTML)
-  const elShare = document.getElementById("snbShare");
-  const elCopy = document.getElementById("snbCopy");
-  const elToast = document.getElementById("snbToast");
-  const elOpen = document.getElementById("snbOpen");
-
-
-  // Optional manual copy box (recommended). If you didn't add it yet, script will create it.
-  let elShareBox = document.getElementById("snbShareBox");
-
-  // --- On-page error reporting (so we can see errors without console)
-  window.onerror = function (msg, url, line, col) {
-    if (!elError) return;
-    elError.style.display = "block";
-    elError.textContent = `Error: ${msg} (${line}:${col})`;
-  };
+  function $(id) {
+    return document.getElementById(id);
+  }
 
   function showError(msg) {
-    if (!elError) return;
-    elError.textContent = msg;
-    elError.style.display = "block";
+    if (!$("snbError")) return;
+    $("snbError").textContent = msg;
+    $("snbError").style.display = "block";
   }
 
   function clearError() {
-    if (!elError) return;
-    elError.textContent = "";
-    elError.style.display = "none";
+    if (!$("snbError")) return;
+    $("snbError").textContent = "";
+    $("snbError").style.display = "none";
   }
 
   function toast(msg) {
-    if (!elToast) return;
-    elToast.textContent = msg;
-    elToast.style.display = "block";
-    setTimeout(() => (elToast.style.display = "none"), 2200);
+    if (!$("snbToast")) return;
+    $("snbToast").textContent = msg;
+    $("snbToast").style.display = "block";
+    setTimeout(() => ($("snbToast").style.display = "none"), 2200);
   }
 
-  // Parse date input "YYYY-MM-DD" as local midnight to avoid timezone weirdness.
-  function parseLocalDate(yyyy_mm_dd) {
-    const [y, m, d] = yyyy_mm_dd.split("-").map(Number);
+  function parseLocalDate(val) {
+    const [y, m, d] = val.split("-").map(Number);
     return new Date(y, m - 1, d, 0, 0, 0, 0);
   }
 
   function daysBetween(start, end) {
-    const msPerDay = 24 * 60 * 60 * 1000;
+    const ms = 86400000;
     const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    return Math.max(0, Math.floor((e - s) / msPerDay));
+    return Math.max(0, Math.floor((e - s) / ms));
   }
 
-  // Months/Years: calendar math
   function diffYearsMonths(start, end) {
-    let years = end.getFullYear() - start.getFullYear();
-    let months = end.getMonth() - start.getMonth();
-    let totalMonths = years * 12 + months;
-    if (end.getDate() < start.getDate()) totalMonths -= 1;
-    return { years: Math.max(0, Math.floor(totalMonths / 12)), months: Math.max(0, totalMonths) };
+    let months =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
+    if (end.getDate() < start.getDate()) months -= 1;
+    return {
+      years: Math.max(0, Math.floor(months / 12)),
+      months: Math.max(0, months),
+    };
   }
 
-  function milestoneFromDays(d) {
-    const milestones = [1, 7, 14, 30, 60, 90, 100, 180, 365, 730, 1095, 1825, 3650];
-    let best = null;
-    for (const m of milestones) if (d >= m) best = m;
-    if (!best) return null;
-    if (d !== best) return null;
-    if (best >= 365) {
-      const y = Math.floor(best / 365);
-      return `🎉 Milestone: ${y} year${y === 1 ? "" : "s"}!`;
-    }
-    return `🎉 Milestone: ${best} days!`;
+  function milestone(days) {
+    const list = [30, 60, 90, 180, 365, 730, 1095, 1825];
+    return list.includes(days)
+      ? days >= 365
+        ? `🎉 ${Math.floor(days / 365)} year milestone!`
+        : `🎉 ${days} day milestone!`
+      : null;
   }
 
-  function buildShareText(state) {
-    const ms = milestoneFromDays(state.days);
-    const parts = [];
-    parts.push(`I’m sober today: ${state.days} day${state.days === 1 ? "" : "s"}.`);
-    parts.push(`(${state.weeks.toFixed(1)} weeks • ${state.months} months • ${state.years} years)`);
-    if (ms) parts.push(ms);
-    parts.push(`Support + resources: Sober Not Boring app`);
-    return parts.join(" ");
-  }
-
-  // Ensure we have a manual copy box even if you didn’t add it in HTML
-  function ensureShareBox() {
-    if (elShareBox) return elShareBox;
-    elShareBox = document.createElement("textarea");
-    elShareBox.id = "snbShareBox";
-    elShareBox.readOnly = true;
-    elShareBox.style.width = "100%";
-    elShareBox.style.marginTop = "10px";
-    elShareBox.style.padding = "10px";
-    elShareBox.style.borderRadius = "10px";
-    elShareBox.style.border = "1px solid rgba(0,0,0,.18)";
-    elShareBox.style.display = "none";
-    if (elResults) elResults.appendChild(elShareBox);
-    return elShareBox;
-  }
-
-  function showManualCopy(text) {
-    const box = ensureShareBox();
-    box.value = text;
-    box.style.display = "block";
-    box.focus();
-    box.select();
-    toast("If share/copy is blocked, tap and hold to copy.");
-    function isEmbedded() {
-  try { return window.self !== window.top; } catch (e) { return true; }
-}
-
-  }
-
-  // --- State used for sharing
-  if (isEmbedded()) {
-  // In-app / iframe: share sheet usually blocked
-  showManualCopy(`${text} ${url}`.trim());
-  toast("Sharing works best in full screen. Tap 'Open Full Screen'.");
-  return;
-}
-
-  let shareState = null;
-
-  function render(startDate) {
-    const now = new Date();
-    const d = daysBetween(startDate, now);
-    const w = d / 7;
-    const ym = diffYearsMonths(startDate, now);
-
-    elDays.textContent = d.toLocaleString();
-    elWeeks.textContent = w.toFixed(1);
-    elMonths.textContent = ym.months.toLocaleString();
-    elYears.textContent = ym.years.toLocaleString();
-
-    shareState = { days: d, weeks: w, months: ym.months, years: ym.years };
-    elResults.style.display = "block";
-  }
-
-  function loadSaved() {
-    const saved = localStorage.getItem(KEY);
-    if (!saved) return;
-    elDate.value = saved;
-    render(parseLocalDate(saved));
-  }
-
-  // --- Button styling
-  elSave.style.background = "black";
-  elSave.style.color = "white";
-
-  if (elShare) {
-    elShare.style.background = "black";
-    elShare.style.color = "white";
-    elShare.type = "button";
-  }
-  if (elCopy) elCopy.type = "button";
-
-  // --- Main handlers
-  elSave.addEventListener("click", function () {
-    clearError();
-    if (!elDate.value) {
-      showError("Please pick a sobriety start date.");
-      return;
-    }
-    const start = parseLocalDate(elDate.value);
-    const now = new Date();
-    if (start > now) {
-      showError("That date is in the future. Choose your actual start date.");
-      return;
-    }
-    localStorage.setItem(KEY, elDate.value);
-    render(start);
-    if (elOpen) {
-  elOpen.addEventListener("click", function () {
-    // Open the tracker as a top-level page (not embedded)
-    window.open(location.href, "_blank", "noopener,noreferrer");
-  });
-}
-
-  });
-
-  elReset.addEventListener("click", function () {
-    localStorage.removeItem(KEY);
-    elDate.value = "";
-    elResults.style.display = "none";
-    shareState = null;
-    clearError();
-  });
-
-  // --- Share / Copy
-  if (!elShare || !elCopy) {
-    showError("Share/Copy buttons not found. Check the button IDs in your HTML.");
-  } else {
-    elShare.addEventListener("click", async function () {
-      clearError();
-      if (!shareState) {
-        showError("Save your date first.");
-        return;
-      }
-
-      const text = buildShareText(shareState);
-      const url = location.href; // shares your tracker page link
-
-      try {
-        if (navigator.share) {
-          await navigator.share({ title: "Sobriety Tracker", text, url });
-          toast("Shared.");
-        } else {
-          // fallback: clipboard if available
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(`${text} ${url}`.trim());
-            toast("Copied—paste it anywhere.");
-          } else {
-            showManualCopy(`${text} ${url}`.trim());
-          }
-        }
-      } catch (e) {
-        // If share is cancelled or blocked, offer manual copy
-        showManualCopy(`${text} ${url}`.trim());
-      }
-    });
-
-    elCopy.addEventListener("click", async function () {
-      clearError();
-      if (!shareState) {
-        showError("Save your date first.");
-        return;
-      }
-
-      const text = buildShareText(shareState);
-
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(text);
-          toast("Copied to clipboard.");
-        } else {
-          showManualCopy(text);
-        }
-      } catch (e) {
-        showManualCopy(text);
-      }
-    });
-
-    // Proof-of-life (remove later if you want)
-    // toast("Share/Copy ready.");
-  }
-
-  loadSaved();
-})();
-</script>
 
