@@ -140,4 +140,153 @@
       : null;
   }
 
+  function buildShareText(s) {
+    const parts = [
+      `I’m sober today: ${s.days} day${s.days === 1 ? "" : "s"}.`,
+      `(${s.weeks.toFixed(1)} weeks • ${s.months} months • ${s.years} years)`,
+    ];
+    const m = milestone(s.days);
+    if (m) parts.push(m);
+    parts.push("Support + resources: Sober Not Boring app");
+    return parts.join(" ");
+  }
+
+  function ensureManualBox() {
+    let box = $("snbShareBox");
+    if (box) return box;
+
+    box = document.createElement("textarea");
+    box.id = "snbShareBox";
+    box.readOnly = true;
+    box.style.width = "100%";
+    box.style.marginTop = "10px";
+    box.style.padding = "10px";
+    box.style.borderRadius = "10px";
+    box.style.border = "1px solid rgba(0,0,0,.18)";
+    box.style.display = "none";
+    $("snbResults").appendChild(box);
+    return box;
+  }
+
+  function manualCopy(text) {
+    const box = ensureManualBox();
+    box.value = text;
+    box.style.display = "block";
+    box.focus();
+    box.select();
+    toast("Tap and hold to copy.");
+  }
+
+  /* ---------- Elements ---------- */
+
+  const elDate = $("snbDate");
+  const elSave = $("snbSave");
+  const elReset = $("snbReset");
+  const elResults = $("snbResults");
+
+  const elDays = $("snbDays");
+  const elWeeks = $("snbWeeks");
+  const elMonths = $("snbMonths");
+  const elYears = $("snbYears");
+
+  const elShare = $("snbShare");
+  const elCopy = $("snbCopy");
+  const elOpen = $("snbOpen");
+
+  /* ---------- State ---------- */
+
+  let shareState = null;
+
+  /* ---------- Render ---------- */
+
+  function render(start) {
+    const now = new Date();
+    const d = daysBetween(start, now);
+    const w = d / 7;
+    const ym = diffYearsMonths(start, now);
+
+    elDays.textContent = d.toLocaleString();
+    elWeeks.textContent = w.toFixed(1);
+    elMonths.textContent = ym.months;
+    elYears.textContent = ym.years;
+
+    shareState = { days: d, weeks: w, months: ym.months, years: ym.years };
+    elResults.style.display = "block";
+  }
+
+  /* ---------- Load ---------- */
+
+  const saved = localStorage.getItem(KEY);
+  if (saved) {
+    elDate.value = saved;
+    render(parseLocalDate(saved));
+  }
+
+  /* ---------- Buttons ---------- */
+
+  elSave.onclick = () => {
+    clearError();
+    if (!elDate.value) return showError("Please select a sobriety start date.");
+    const start = parseLocalDate(elDate.value);
+    if (start > new Date()) return showError("Date cannot be in the future.");
+    localStorage.setItem(KEY, elDate.value);
+    render(start);
+  };
+
+  elReset.onclick = () => {
+    localStorage.removeItem(KEY);
+    elDate.value = "";
+    elResults.style.display = "none";
+    shareState = null;
+    clearError();
+  };
+
+  elShare.onclick = async () => {
+    if (!shareState) return showError("Save your date first.");
+    const text = buildShareText(shareState);
+    const url = location.href;
+
+    if (isEmbedded()) {
+      manualCopy(`${text} ${url}`);
+      toast("Open full screen to use native sharing.");
+      return;
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Sobriety Tracker", text, url });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast("Copied to clipboard.");
+      } else {
+        manualCopy(`${text} ${url}`);
+      }
+    } catch {
+      manualCopy(`${text} ${url}`);
+    }
+  };
+
+  elCopy.onclick = async () => {
+    if (!shareState) return showError("Save your date first.");
+    const text = buildShareText(shareState);
+
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        toast("Copied.");
+      } else {
+        manualCopy(text);
+      }
+    } catch {
+      manualCopy(text);
+    }
+  };
+
+  elOpen.onclick = () => {
+    window.open(location.href, "_blank", "noopener,noreferrer");
+  };
+})();
+</script>
+
+
 
